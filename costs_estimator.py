@@ -89,7 +89,7 @@ def main():
         st.markdown(
             f"""
             <div class="metric-box">
-                <strong>Giorni per formazione dei dipendenti:</strong>
+                <strong>Giorni per formazione dipendenti:</strong>
                 <br><span style="font-size: 1.5em; color: #d2691e;">{days_training_dse:.2f}</span>
             </div>
             """,
