@@ -36,8 +36,8 @@ def main():
     st.write(
         """
         Inserisci il numero di dipendenti della tua azienda per calcolare:
-        - **Giorni spesi per la gestione della conformità coi dispositivi elettronici aziendali.**
-        - **Giorni spesi dai dipendenti per completare valutazioni e formazione in fatto di salute in ufficio.**
+        - **Giorni spesi per rendere i dispositivi elettronici aziendali conformi con gli standard medici regolativi.**
+        - **Giorni spesi dai dipendenti per completare formazione in fatto di salute in ufficio.**
         - **Giorni persi a causa di assenze per problemi muscolari e scheletrici.**
         - **Giorni persi per riduzione di produttività correlata ai problemi muscoloscheletrici.**
         """
@@ -69,7 +69,7 @@ def main():
         st.markdown(
             f"""
             <div class="metric-box">
-                <strong>Giorni per conformità dei dispositivi:</strong>
+                <strong>Giorni per conformare i dispositivi:</strong>
                 <br><span style="font-size: 1.5em; color: #d2691e;">{days_admin_dse:.2f}</span>
             </div>
             """,
@@ -89,7 +89,7 @@ def main():
         st.markdown(
             f"""
             <div class="metric-box">
-                <strong>Giorni per valutazioni tradizionali:</strong>
+                <strong>Giorni per formazione dei dipendenti:</strong>
                 <br><span style="font-size: 1.5em; color: #d2691e;">{days_training_dse:.2f}</span>
             </div>
             """,
