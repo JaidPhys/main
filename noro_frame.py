@@ -7,76 +7,89 @@ import asyncio
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# Initialize MediaPipe Pose model
+# Initialize MediaPipe Pose with real-time settings
 mp_pose = mp.solutions.pose
-pose = mp_pose.Pose()
+pose = mp_pose.Pose(
+    static_image_mode=False,
+    model_complexity=1,
+    smooth_landmarks=True,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5
+)
 mp_drawing = mp.solutions.drawing_utils
 
-# Streamlit Web App Interface
-st.title("Pose Estimation on Video")
+st.title("Real-Time Pose Estimation on Video")
 
-# File uploader
+# File uploader for video
 uploaded_file = st.file_uploader("Upload a video of a person", type=["mp4", "avi", "mov"])
 
 show_feedback = False
 if uploaded_file is not None:
-    # Save the uploaded video to a temporary file
+    # Save uploaded video to a temporary file
     tfile = tempfile.NamedTemporaryFile(delete=False)
     tfile.write(uploaded_file.read())
 
-    # Open the video file using OpenCV
+    # Open video file using OpenCV
     vf = cv.VideoCapture(tfile.name)
-
     stframe = st.empty()  # Placeholder for displaying frames
 
-    # Frame rate control
+    # Get video FPS
     fps = vf.get(cv.CAP_PROP_FPS)
-    delay = 5 / fps if fps > 0 else 0.03  # Adjust delay based on video fps
-    n_skipped = 10
+    frame_time = 1 / fps if fps > 0 else 0.03  # Time between frames (original speed)
+    slow_factor = 1.2  # Adjust this value for slightly slower playback (1.2 = 20% slower)
+    delay = frame_time * slow_factor
     total_frames = int(vf.get(cv.CAP_PROP_FRAME_COUNT))
-    st.success(f"fps: {round(fps, 1)}; frames between pictures: {n_skipped}; delay: {round(delay,1)}; Total frames in video: {total_frames}")
 
-    frame_counter = 0  # Initialize frame counter
+    st.success(f"fps: {round(fps, 1)}; Total frames in video: {total_frames}")
 
     while vf.isOpened():
         ret, frame = vf.read()
         if not ret:
-            st.success(f"Analysis Ended, {int(total_frames / n_skipped)} Frames Analysed. Feedback Ready ...")
+            st.success(f"Analysis Complete. Total frames processed: {total_frames}")
             break
 
-        # Convert the frame to RGB for MediaPipe processing
+        # Resize frame for faster processing (optional)
+        frame = cv.resize(frame, (640, 480))
+
+        # Convert to RGB for MediaPipe
         rgb_frame = cv.cvtColor(frame, cv.COLOR_BGR2RGB)
+
+        # Real-time pose processing
         results = pose.process(rgb_frame)
 
-        # Draw pose landmarks on the frame
+        # Draw pose landmarks if detected
         if results.pose_landmarks:
             mp_drawing.draw_landmarks(
-                frame, results.pose_landmarks, mp_pose.POSE_CONNECTIONS)
+                frame,
+                results.pose_landmarks,
+                mp_pose.POSE_CONNECTIONS
+            )
 
-        # Update the display conditionally to avoid overload
-        if frame_counter % n_skipped == 0:  # Only update every n frames
-            # Add a delay to control frame rendering speed
-            time.sleep(delay)
-            stframe.image(frame, channels="BGR", use_container_width=True)  # Updated parameter  # Display in original color (BGR format)      
+        # Display the current frame with pose landmarks
+        stframe.image(frame, channels="BGR", use_container_width=True)
 
-    vf.release()  # Release video capture object
+        # Introduce a small delay for slightly slower playback
+        time.sleep(delay)
+
+    vf.release()
     show_feedback = True
 
 
-# Leggi Feedback dal DB
+# --- Firebase Feedback Section ---
 async def get_feedback():
     try:
         # Load the TOML content from an environment variable
         credentials_data = st.secrets.FIREBASE_SERVICE_ACCOUNT_KEY
     except Exception as e:
         st.error(f"Errore nella lettura delle credenziali: {e}")
-        
+        return
+
     try:
         cred = credentials.Certificate({
             "type": credentials_data.type,
             "project_id": credentials_data.project_id,
             "private_key_id": credentials_data.private_key_id,
-            "private_key": credentials_data.private_key.replace("\\n", "\n"),  # replace line breaks
+            "private_key": credentials_data.private_key.replace("\\n", "\n"),
             "client_email": credentials_data.client_email,
             "client_id": credentials_data.client_id,
             "auth_uri": credentials_data.auth_uri,
@@ -87,34 +100,34 @@ async def get_feedback():
         })
     except Exception as e:
         st.error(f"Errore nella conversione delle credenziali: {e}")
-        
+        return
+
     try:
         if not firebase_admin._apps:
             firebase_admin.initialize_app(cred)
     except Exception as e:
         st.error(f"Errore nello stabilire una connessione: {e}")
+        return
 
     try:
         db = firestore.client()
         feedback_ref = db.collection('feedback').order_by('timestamp', direction=firestore.Query.DESCENDING).limit(1)
     except Exception as e:
-        st.error(f"Errore nelrecupero del feedback: {e}")
-        
+        st.error(f"Errore nel recupero del feedback: {e}")
+        return
+
     try:
         feedback = feedback_ref.stream()
-        if feedback: 
+        if feedback:
             for fb in feedback:
-                return (fb.to_dict()['content'])
+                return fb.to_dict()['content']
         else:
             return "Nessun feedback disponibile."
     except Exception as e:
         st.error(f"Errore nella scrittura del feedback: {e}")
 
-# Bottone per aggiornare il feedback
-# if st.button("Aggiorna Feedback"):
-#     feedback = asyncio.run(get_feedback())
-#     st.text_area("Feedback", value=feedback, height=300, disabled=True)
 
 if show_feedback:
     feedback = asyncio.run(get_feedback())
-    st.text_area("Feedback", value=feedback, height=300, disabled=True)
+    if feedback:
+        st.text_area("Feedback", value=feedback, height=300, disabled=True)
